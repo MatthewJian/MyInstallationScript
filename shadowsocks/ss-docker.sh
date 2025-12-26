@@ -174,12 +174,7 @@ prepare_files() {
       "dns.google": "8.8.8.8",
       "geosite:category-ads-all": "127.0.0.1",
       "geosite:cn": "127.0.0.1"
-    },
-    "servers": [
-      {
-        "address": "tls://8.8.8.8:853"
-      }
-    ]
+    }
   },
   "inbounds": [
     {
