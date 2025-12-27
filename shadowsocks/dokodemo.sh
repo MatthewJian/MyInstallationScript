@@ -27,14 +27,10 @@ echo ""  # 換行
 
 # 將網絡優化參數追加到 /etc/sysctl.conf 文件
 cat >> /etc/sysctl.conf << EOF
-# 設置默認隊列規則為 cake，提升網絡性能
 net.core.default_qdisc = cake
-# 使用 BBR 擁塞控制算法，優化 TCP 性能
 net.ipv4.tcp_congestion_control = bbr
-# 忽略所有 ICMP 回顯請求（ping），增強安全性
 net.ipv4.icmp_echo_ignore_all = 1
 EOF
-# 應用 sysctl 配置，並將輸出重定向到 /dev/null 以保持簡潔
 sysctl -p >/dev/null
 
 # 將參數轉義並儲存到變量
@@ -44,14 +40,39 @@ shadowsocksport=$(printf '%q' "$3")
 progress_bar 30  # 完成 30%
 echo ""  # 換行
 
-# 下載並安裝 V2Ray
-wget -q https://github.com/v2fly/v2ray-core/releases/download/v5.8.0/v2ray-linux-64.zip -O v2ray-linux-64.zip >/dev/null 2>&1 && \
-wget -q https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh -O install-release.sh >/dev/null 2>&1 && \
+# 檢查 curl 是否存在，若無則安裝
+if ! command -v curl &>/dev/null; then
+    apt update >/dev/null 2>&1 && apt install -y curl >/dev/null 2>&1
+fi
+
+# 檢查 wget 是否存在，若無則安裝
+if ! command -v wget &>/dev/null; then
+    apt update >/dev/null 2>&1 && apt install -y wget >/dev/null 2>&1
+fi
+
+# 取得 v2fly/v2ray-core 的最新版本
+latest_tag=$(curl -s "https://api.github.com/repos/v2fly/v2ray-core/releases/latest" | grep -oP '"tag_name":\s*"\K(.*)(?=")')
+# 構建下載網址
+download_url="https://github.com/v2fly/v2ray-core/releases/download/${latest_tag}/v2ray-linux-64.zip"
+# 下載最新版本的 V2Ray 執行檔案
+wget -q "$download_url" -O v2ray-linux-64.zip >/dev/null 2>&1
+# 下載安裝腳本
+wget -q https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh -O install-release.sh >/dev/null 2>&1
+# 執行安裝腳本安裝 V2Ray
 bash install-release.sh --local v2ray-linux-64.zip
 progress_bar 50  # 完成 50%
 
-# 創建 V2Ray 配置文件，設定服務器參數
-cat > /usr/local/etc/v2ray/config.json << EOF
+# 檢查是否有本地config.json配置
+LOCAL_CONFIG_PATH="./config.json"
+TARGET_CONFIG_PATH="/usr/local/etc/v2ray/config.json"
+
+if [ -f "$LOCAL_CONFIG_PATH" ]; then
+    echo -e "\033[1;32mFound local config.json, using it for V2Ray.\033[0m"
+    cp "$LOCAL_CONFIG_PATH" "$TARGET_CONFIG_PATH"
+    rm "$LOCAL_CONFIG_PATH"
+else
+    # 沒有本地配置則寫入自動生成配置
+    cat > /usr/local/etc/v2ray/config.json << EOF
 {
 	"inbounds": [
 		{
@@ -109,6 +130,7 @@ cat > /usr/local/etc/v2ray/config.json << EOF
 	}
 }
 EOF
+fi
 
 # 啟用並啟動 V2Ray 服務，抑制輸出
 systemctl enable v2ray >/dev/null 2>&1 && systemctl start v2ray >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1
